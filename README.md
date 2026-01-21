@@ -2,14 +2,14 @@
 
 This project automates the download and processing of bird sound recordings from the IISERB (Indian Institute of Science Education and Research Bhopal) hotspot for TinyML applications.
 
-## 📋 Features
+##  Features
 
 - Downloads bird sound recordings from Xeno-Canto database
 - Converts audio to TinyML-compatible format (16kHz, mono, 3-second clips)
 - Creates train/test splits for model training
 - Supports 10 common bird species from IISERB region
 
-## 🐦 Bird Species Included
+##  Bird Species Included
 
 1. Asian Koel (*Eudynamys scolopaceus*)
 2. Red-vented Bulbul (*Pycnonotus cafer*)
@@ -22,7 +22,7 @@ This project automates the download and processing of bird sound recordings from
 9. Purple Sunbird (*Cinnyris asiatica*)
 10. Coppersmith Barbet (*Psilopogon haemacephalus*)
 
-## 🚀 Quick Start
+##  Quick Start
 
 ### Prerequisites
 
@@ -58,7 +58,7 @@ This creates synthetic bird-like sounds perfect for testing your TinyML pipeline
 
 Follow the instructions in [MANUAL_DOWNLOAD_GUIDE.md](MANUAL_DOWNLOAD_GUIDE.md)
 
-## 📁 Project Structure
+##  Project Structure
 
 ```
 ├── create_demo_dataset.py          # Generate synthetic demo data
@@ -69,7 +69,7 @@ Follow the instructions in [MANUAL_DOWNLOAD_GUIDE.md](MANUAL_DOWNLOAD_GUIDE.md)
 └── README.md                       # This file
 ```
 
-## 📊 Output Format
+##  Output Format
 
 The scripts generate a dataset in the following structure:
 
@@ -93,17 +93,17 @@ iiserb_tinyml_dataset/
 - Duration: 3 seconds
 - Split: 80% train, 20% test
 
-## 🔗 Resources
+##  Resources
 
 - [Xeno-Canto](https://xeno-canto.org/) - Bird sound database
 - [IISERB eBird Hotspot](https://ebird.org/hotspot/L2217455) - Source of species list
 - [TinyML Book](https://www.oreilly.com/library/view/tinyml/9781492052036/)
 
-## 📝 License
+##  License
 
 This project is for educational purposes. Bird recordings are from Xeno-Canto and are subject to their individual licenses.
 
-## 🙏 Acknowledgments
+##  Acknowledgments
 
 - Xeno-Canto community for the bird sound recordings
 - IISERB for the species reference data
