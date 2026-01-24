@@ -22,7 +22,7 @@ try:
     _ = librosa.load(__file__, sr=16000, duration=0.1)
 except:
     pass
-print("✓ Ready!\n")
+print("Ready!\n")
 
 def download_iiserb_data():
     # API v3 with key parameter
@@ -48,7 +48,7 @@ def download_iiserb_data():
             r = requests.get(base_url, params=params, timeout=30)
             
             if r.status_code != 200:
-                print(f"  ✗ API error (HTTP {r.status_code})")
+                print(f"  X API error (HTTP {r.status_code})")
                 print(f"  Response: {r.text[:200]}")
                 continue
             
@@ -56,17 +56,17 @@ def download_iiserb_data():
             
             # Check if recordings exist
             if 'recordings' not in data:
-                print(f"  ✗ No recordings found")
+                print(f"  X No recordings found")
                 continue
             
             recordings = data['recordings']
             num_total = data.get('numRecordings', len(recordings))
             
             if not recordings:
-                print(f"  ⚠ No recordings available")
+                print(f"  ! No recordings available")
                 continue
                 
-            print(f"  ✓ Found {num_total} total recordings!")
+            print(f"  Found {num_total} total recordings!")
             print(f"  Downloading first 10...")
             
             # Download first 10
@@ -76,7 +76,7 @@ def download_iiserb_data():
                 file_url = rec.get('file', '')
                 
                 if not file_url:
-                    print(f"  ✗ No file URL for recording {rec_id}")
+                    print(f"  X No file URL for recording {rec_id}")
                     continue
                 
                 # Ensure URL starts with https
@@ -88,19 +88,19 @@ def download_iiserb_data():
                 
                 # Skip if already processed
                 if os.path.exists(wav_path):
-                    print(f"  [{i+1}/10] {rec_id} - Already exists ✓")
+                    print(f"  [{i+1}/10] {rec_id} - Already exists")
                     downloaded += 1
                     continue
                 
                 # Download MP3
-                print(f"  [{i+1}/10] Downloading {rec_id}...", end=' ', flush=True)
+                print(f"[{i+1}/10] Downloading {rec_id}...", end=' ', flush=True)
                 try:
                     with requests.get(file_url, stream=True, timeout=60) as audio_r:
                         audio_r.raise_for_status()
                         with open(file_path, 'wb') as f:
                             for chunk in audio_r.iter_content(chunk_size=8192):
                                 f.write(chunk)
-                    print(f"✓ ({os.path.getsize(file_path)//1024}KB)", end=' ')
+                    print(f"OK ({os.path.getsize(file_path)//1024}KB)", end=' ')
                     
                     # Convert to TinyML format (16kHz, Mono, 3s)
                     print("Converting...", end=' ', flush=True)
@@ -108,23 +108,23 @@ def download_iiserb_data():
                     y = y[:16000*3]  # Keep only 3 seconds
                     os.makedirs(f"iiserb_dataset/{name}", exist_ok=True)
                     sf.write(wav_path, y, 16000)
-                    print("✓ WAV")
+                    print("WAV")
                     downloaded += 1
                     time.sleep(1)  # Be nice to the server
                     
                 except Exception as e:
-                    print(f"✗ ({str(e)[:40]})")
+                    print(f"X ({str(e)[:40]})")
                     
-            print(f"\n  ✅ Successfully downloaded {downloaded}/10 files for {name}")
+            print(f"\n  Successfully downloaded {downloaded}/10 files for {name}")
                     
         except Exception as e:
-            print(f"  ✗ Error: {e}")
+            print(f"  X Error: {e}")
             continue
     
     print(f"\n{'='*60}")
-    print("✅ Download complete!")
+    print("Download complete!")
     print('='*60)
-    print(f"📁 Raw MP3s: raw_audio/")
-    print(f"📁 TinyML WAVs: iiserb_dataset/")
+    print(f"Raw MP3s: raw_audio/")
+    print(f"TinyML WAVs: iiserb_dataset/")
 
 download_iiserb_data()
