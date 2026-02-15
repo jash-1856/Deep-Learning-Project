@@ -85,7 +85,7 @@ def create_demo_dataset(num_samples_per_species=20, test_split=0.2):
         print(f"  ✓ Created {len(train_samples)} train + {len(test_samples)} test samples")
     
     print(f"\n Demo dataset ready in '{final_dir}/'")
-    print(f"\n📊 Dataset structure:")
+    print(f"\n Dataset structure:")
     print(f"   - 10 bird species")
     print(f"   - {num_samples_per_species} samples per species")
     print(f"   - {int(num_samples_per_species * (1-test_split))} training samples per class")
