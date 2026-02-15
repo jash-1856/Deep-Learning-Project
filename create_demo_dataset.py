@@ -82,7 +82,7 @@ def create_demo_dataset(num_samples_per_species=20, test_split=0.2):
         for filename, audio in test_samples:
             sf.write(os.path.join(test_dir, filename), audio, 16000)
         
-        print(f"  ✓ Created {len(train_samples)} train + {len(test_samples)} test samples")
+        print(f" Created {len(train_samples)} train + {len(test_samples)} test samples")
     
     print(f"\n Demo dataset ready in '{final_dir}/'")
     print(f"\n Dataset structure:")
