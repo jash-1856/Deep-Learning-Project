@@ -1,130 +1,159 @@
 import os
 import requests
+import time
 import librosa
 import soundfile as sf
-import time
 
-# Your Xeno-Canto API key - Get yours from https://xeno-canto.org/account
-API_KEY = os.environ.get("XENO_CANTO_API_KEY", "YOUR_API_KEY_HERE")
+# ==========================================
+# 1. PASTE YOUR API KEY HERE
+# ==========================================
+# Get this from xeno-canto.org -> My Account -> Developer
+API_KEY = "29703358651515765b6d498860ce2b2c96dd5980"
 
-# IISERB Species
-birds = {
-    "Asian_Koel": "Eudynamys scolopaceus",
-    "Red-vented_Bulbul": "Pycnonotus cafer",
-    "Common_Myna": "Acridotheres tristis",
-    "Rose-ringed_Parakeet": "Psittacula krameri",
-    "Indian_Peafowl": "Pavo cristatus"
-}
+# ==========================================
+# CONFIGURATION
+# ==========================================
+TARGET_BIRDS = [
+    "Pavo cristatus", "Vanellus indicus", "Corvus splendens", 
+    "Columba livia", "Ptyonoprogne concolor", "Merops orientalis",
+    "Apus affinis", "Psittacula krameria", "Ploceus philippinus",
+    "Pycnonotus cafer", "Psittacula cyanocephala", "Dendrocygna javanica",
+    "Cinnyris asiaticus", "Acridotheres tristis", "Eudynamys scolopaceus"
+]
 
-print("Warming up librosa (first-time compilation, please wait...)...")
-try:
-    # Pre-compile numba functions
-    _ = librosa.load(__file__, sr=16000, duration=0.1)
-except:
-    pass
-print("Ready!\n")
+MAX_FILES = 100
+DATASET_PATH = "dataset"
+SAMPLE_RATE = 32000
 
-def download_iiserb_data():
-    # API v3 with key parameter
-    base_url = "https://www.xeno-canto.org/api/3/recordings"
+# ==========================================
+# HELPER FUNCTIONS
+# ==========================================
+def convert_to_wav(mp3_path, wav_path):
+    try:
+        y, sr = librosa.load(mp3_path, sr=SAMPLE_RATE)
+        sf.write(wav_path, y, sr)
+        return True
+    except:
+        return False
+
+def get_recordings(query_str):
+    """Fetches list of recordings using the strict V3 format"""
+    # Note: Even though it says V3, the endpoint URL often remains /api/2/ 
+    # but the backend rules (tags required) are V3.
+    url = "https://xeno-canto.org/api/3/recordings"
     
-    for name, sci_name in birds.items():
-        print(f"\n{'='*60}")
-        print(f"Fetching {name} ({sci_name})...")
-        print('='*60)
-        os.makedirs(f"raw_audio/{name}", exist_ok=True)
+    params = {
+        'query': query_str,
+        'key': API_KEY
+    }
+    
+    try:
+        resp = requests.get(url, params=params)
+        if resp.status_code != 200:
+            print(f"   [API Error] {resp.status_code}: {resp.text}")
+            return []
+            
+        data = resp.json()
+        return data.get('recordings', [])
+    except Exception as e:
+        print(f"   [Connection Error] {e}")
+        return []
+
+# ==========================================
+# THE PRIORITY SORTING SCRAPER
+# ==========================================
+def download_priority(species, max_count):
+    safe_name = species.replace(" ", "_")
+    mp3_dir = os.path.join(DATASET_PATH, "mp3_raw", safe_name)
+    wav_dir = os.path.join(DATASET_PATH, "wav_clean", safe_name)
+    os.makedirs(mp3_dir, exist_ok=True)
+    os.makedirs(wav_dir, exist_ok=True)
+    
+    print(f"\n--- Processing: {species} ---")
+    
+    # 1. Build Strict V3 Query (Gen/Sp tags)
+    parts = species.split(" ")
+    if len(parts) == 2:
+        base_query = f'gen:{parts[0]} sp:{parts[1]} len:5-30'
+    else:
+        base_query = f'en:"{species}" len:5-30'
+    
+    # 2. Fetch Lists separately
+    print("Fetching Quality A...")
+    list_a = get_recordings(f'{base_query} q:A')
+    
+    print("Fetching Quality B...")
+    list_b = get_recordings(f'{base_query} q:B')
+    
+    # 3. ASSIGN PRIORITIES (The "Score" Logic)
+    # Score 1: Quality A + Clean
+    # Score 2: Quality B + Clean
+    # Score 3: Quality A + Dirty
+    # Score 4: Quality B + Dirty (REJECT)
+    
+    candidates = []
+    
+    # Process A Files
+    for rec in list_a:
+        is_clean = len(rec['also']) == 0
+        if is_clean:
+            rec['priority'] = 1 # GOLD
+        else:
+            rec['priority'] = 3 # BRONZE
+        candidates.append(rec)
         
-        try:
-            # Build query with API key - v3 requires gen: and sp: tags
-            genus, species = sci_name.split()[0], sci_name.split()[1]
-            query = f"gen:{genus} sp:{species}"
-            
-            params = {
-                'query': query,
-                'key': API_KEY
-            }
-            
-            print(f"  Query: {query}")
-            r = requests.get(base_url, params=params, timeout=30)
-            
-            if r.status_code != 200:
-                print(f"  X API error (HTTP {r.status_code})")
-                print(f"  Response: {r.text[:200]}")
-                continue
-            
-            data = r.json()
-            
-            # Check if recordings exist
-            if 'recordings' not in data:
-                print(f"  X No recordings found")
-                continue
-            
-            recordings = data['recordings']
-            num_total = data.get('numRecordings', len(recordings))
-            
-            if not recordings:
-                print(f"  ! No recordings available")
-                continue
-                
-            print(f"  Found {num_total} total recordings!")
-            print(f"  Downloading first 10...")
-            
-            # Download first 10
-            downloaded = 0
-            for i, rec in enumerate(recordings[:10]):
-                rec_id = rec.get('id', i)
-                file_url = rec.get('file', '')
-                
-                if not file_url:
-                    print(f"  X No file URL for recording {rec_id}")
-                    continue
-                
-                # Ensure URL starts with https
-                if not file_url.startswith('http'):
-                    file_url = 'https:' + file_url
-                
-                file_path = f"raw_audio/{name}/{name}_{rec_id}.mp3"
-                wav_path = f"iiserb_dataset/{name}/{name}_{rec_id}.wav"
-                
-                # Skip if already processed
-                if os.path.exists(wav_path):
-                    print(f"  [{i+1}/10] {rec_id} - Already exists")
-                    downloaded += 1
-                    continue
-                
-                # Download MP3
-                print(f"[{i+1}/10] Downloading {rec_id}...", end=' ', flush=True)
-                try:
-                    with requests.get(file_url, stream=True, timeout=60) as audio_r:
-                        audio_r.raise_for_status()
-                        with open(file_path, 'wb') as f:
-                            for chunk in audio_r.iter_content(chunk_size=8192):
-                                f.write(chunk)
-                    print(f"OK ({os.path.getsize(file_path)//1024}KB)", end=' ')
-                    
-                    # Convert to TinyML format (16kHz, Mono, 3s)
-                    print("Converting...", end=' ', flush=True)
-                    y, sr = librosa.load(file_path, sr=16000, mono=True)
-                    y = y[:16000*3]  # Keep only 3 seconds
-                    os.makedirs(f"iiserb_dataset/{name}", exist_ok=True)
-                    sf.write(wav_path, y, 16000)
-                    print("WAV")
-                    downloaded += 1
-                    time.sleep(1)  # Be nice to the server
-                    
-                except Exception as e:
-                    print(f"X ({str(e)[:40]})")
-                    
-            print(f"\n  Successfully downloaded {downloaded}/10 files for {name}")
-                    
-        except Exception as e:
-            print(f"  X Error: {e}")
-            continue
+    # Process B Files
+    for rec in list_b:
+        is_clean = len(rec['also']) == 0
+        if is_clean:
+            rec['priority'] = 2 # SILVER
+        else:
+            continue # Don't even add to list
+        candidates.append(rec)
+        
+    # 4. SORT BY PRIORITY
+    # This ensures Priority 1 downloads first, then 2, then 3.
+    candidates.sort(key=lambda x: x['priority'])
     
-    print(f"\n{'='*60}")
-    print("Download complete!")
-    print('='*60)
-    print(f"Raw MP3s: raw_audio/")
-    print(f"TinyML WAVs: iiserb_dataset/")
+    print(f"Found {len(candidates)} valid candidates (Scores 1, 2, 3).")
+    
+    # 5. DOWNLOAD LOOP
+    count = 0
+    for rec in candidates:
+        if count >= max_count: break
+        
+        file_id = rec['id']
+        prio = rec['priority']
+        mp3_path = os.path.join(mp3_dir, f"{file_id}.mp3")
+        wav_path = os.path.join(wav_dir, f"{file_id}.wav")
+        
+        if os.path.exists(wav_path):
+            count += 1
+            continue
+            
+        try:
+            # Helper text for console
+            prio_labels = {1: "A-Clean", 2: "B-Clean", 3: "A-Dirty"}
+            
+            # Download
+            mp3_data = requests.get(rec['file'])
+            with open(mp3_path, 'wb') as f:
+                f.write(mp3_data.content)
+            
+            # Convert
+            if convert_to_wav(mp3_path, wav_path):
+                print(f"Downloaded {count+1}/{max_count}: ID {file_id} [{prio_labels[prio]}]")
+                count += 1
+                
+            time.sleep(1) # Be polite
+            
+        except Exception as e:
+            print(f"      Failed ID {file_id}: {e}")
 
-download_iiserb_data()
+if __name__ == "__main__":
+    if "PASTE" in API_KEY:
+        print("ERROR: Please paste your API Key in line 11.")
+    else:
+        for bird in TARGET_BIRDS:
+            download_priority(bird, MAX_FILES)
+        print("\nAll downloads complete.")
